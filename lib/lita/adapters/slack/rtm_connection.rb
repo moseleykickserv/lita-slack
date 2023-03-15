@@ -45,13 +45,16 @@ module Lita
               websocket_options.merge(options)
             )
 
-            websocket.on(:open) { log.debug("Connected to the Slack Real Time Messaging API.") }
-            websocket.on(:message) { |event| receive_message(event) }
+            websocket.on(:open) { log.info("Connected to the Slack Real Time Messaging API.") }
+            websocket.on(:message) do |event|
+              log.info("got message #{event}"
+              receive_message(event)
+            end
             websocket.on(:close) do
               log.info("Disconnected from Slack.")
               EventLoop.safe_stop
             end
-            websocket.on(:error) { |event| log.debug("WebSocket error: #{event.message}") }
+            websocket.on(:error) { |event| log.warn("WebSocket error: #{event.message}") }
 
             queue << websocket if queue
           end
