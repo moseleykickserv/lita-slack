@@ -1,6 +1,6 @@
 Gem::Specification.new do |spec|
   spec.name          = "lita-slack"
-  spec.version       = "1.8.0"
+  spec.version       = "1.8.1"
   spec.authors       = ["Ken J.", "Jimmy Cuadra"]
   spec.email         = ["kenjij@gmail.com", "jimmy@jimmycuadra.com"]
   spec.description   = %q{Lita adapter for Slack.}
@@ -14,7 +14,7 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency "eventmachine", git: "https://github.com/eventmachine/eventmachine.git"
+  spec.add_runtime_dependency "eventmachine"
   spec.add_runtime_dependency "faraday"
   spec.add_runtime_dependency "faye-websocket", ">= 0.8.0"
   spec.add_runtime_dependency "lita", ">= 4.7.1"
