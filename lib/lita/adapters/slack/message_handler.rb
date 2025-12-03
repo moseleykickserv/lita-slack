@@ -188,9 +188,16 @@ module Lita
 
         def handle_hello
           log.info("Connected to Slack.")
-          # Send presence update to show bot as online in Socket Mode
+          log.debug("Bot user ID: #{robot_id}, Bot mention name: #{robot.mention_name}")
+          # In Socket Mode, presence is typically managed automatically, but we can try to set it
           if websocket
-            websocket.send(MultiJson.dump({ type: "presence_sub", presence: "active" }))
+            begin
+              # Try sending a presence update - this may not be needed in Socket Mode
+              websocket.send(MultiJson.dump({ type: "presence_sub", presence: "active" }))
+              log.debug("Sent presence update")
+            rescue => e
+              log.warn("Failed to send presence update: #{e.message}")
+            end
           end
           robot.trigger(:connected)
         end

@@ -45,8 +45,14 @@ module Lita
               websocket_options.merge(options)
             )
 
-            websocket.on(:open) { log.info("Connected to the Slack Real Time Messaging API.") }
-            websocket.on(:message) { |event| receive_message(event) }
+            websocket.on(:open) do
+              log.info("Connected to the Slack Real Time Messaging API.")
+              log.debug("WebSocket URL: #{websocket_url}")
+            end
+            websocket.on(:message) do |event|
+              log.debug("Raw WebSocket message received: #{event.data}")
+              receive_message(event)
+            end
             websocket.on(:close) do
               log.info("Disconnected from Slack.")
               EventLoop.safe_stop
@@ -96,6 +102,7 @@ module Lita
 
         def receive_message(event)
           data = MultiJson.load(event.data)
+          log.debug("Received WebSocket message: #{data.inspect}")
 
           EventLoop.defer do
             handler = MessageHandler.new(robot, robot_id, data, config)
