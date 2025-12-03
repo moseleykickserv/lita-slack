@@ -3,6 +3,8 @@ module Lita
     class Slack < Adapter
       # @api private
       class MessageHandler
+        attr_accessor :websocket
+
         def initialize(robot, robot_id, data, config)
           @robot = robot
           @robot_id = robot_id
@@ -42,7 +44,8 @@ module Lita
 
         def body
           normalized_message = if data["text"]
-            data["text"].sub(/^\s*<@#{robot_id}>/, "@#{robot.mention_name}")
+            # Replace mentions anywhere in the message, not just at the start
+            data["text"].gsub(/<@#{robot_id}>/, "@#{robot.mention_name}")
           end
 
          normalized_message = remove_formatting(normalized_message) unless normalized_message.nil?
@@ -120,21 +123,46 @@ module Lita
           source.private_message! if channel && channel[0] == "D"
           message = Message.new(robot, body, source)
           # Mark as command if it's a private message or if the bot is mentioned
-          if source.private_message? || mentioned?
+          is_mentioned = mentioned?
+          if source.private_message? || is_mentioned
             message.command!
+            log.debug("Marking message as command. Private: #{source.private_message?}, Mentioned: #{is_mentioned}")
           end
           message.extensions[:slack] = { timestamp: data["ts"] }
-          log.debug("Dispatching message to Lita from #{user.id}.")
+          log.debug("Dispatching message to Lita from #{user.id}. Text: #{data["text"]}, Body: #{body}, Mention name: #{robot.mention_name}, Robot ID: #{robot_id}")
           robot.receive(message)
         end
 
         def mentioned?
           return false unless data["text"]
-          text = data["text"].downcase
-          mention_name = robot.mention_name.downcase
-          # Check if the message contains a mention of the bot (Slack format) or the bot's mention name
-          mention_pattern = /\b#{Regexp.escape(mention_name)}\b/
-          text.include?("<@#{robot_id}>") || text.include?("@#{mention_name}") || text.match(mention_pattern)
+          text = data["text"]
+          text_lower = text.downcase
+          
+          # First check for Slack mention format <@USER_ID>
+          if text.include?("<@#{robot_id}>")
+            log.debug("Mention detected via Slack format: <@#{robot_id}>")
+            return true
+          end
+          
+          # Then check for @mention_name or just mention_name
+          mention_name = robot.mention_name&.downcase
+          if mention_name
+            # Check for @mention_name format
+            if text_lower.include?("@#{mention_name}")
+              log.debug("Mention detected via @mention_name format")
+              return true
+            end
+            
+            # Check for just mention_name as a word (with word boundaries)
+            mention_pattern = /\b#{Regexp.escape(mention_name)}\b/i
+            if text.match(mention_pattern)
+              log.debug("Mention detected via mention_name word match")
+              return true
+            end
+          end
+          
+          log.debug("No mention detected. text=#{text}, robot_id=#{robot_id}, mention_name=#{mention_name}")
+          false
         end
 
         def from_self?(user)
@@ -160,10 +188,15 @@ module Lita
 
         def handle_hello
           log.info("Connected to Slack.")
+          # Send presence update to show bot as online in Socket Mode
+          if websocket
+            websocket.send(MultiJson.dump({ type: "presence_sub", presence: "active" }))
+          end
           robot.trigger(:connected)
         end
 
         def handle_message
+          log.debug("Received message event: #{data.inspect}")
           return unless supported_subtype?
           return if data["user"] == 'USLACKBOT'
 

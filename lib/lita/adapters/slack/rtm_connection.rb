@@ -97,7 +97,11 @@ module Lita
         def receive_message(event)
           data = MultiJson.load(event.data)
 
-          EventLoop.defer { MessageHandler.new(robot, robot_id, data, config).handle }
+          EventLoop.defer do
+            handler = MessageHandler.new(robot, robot_id, data, config)
+            handler.websocket = websocket if handler.respond_to?(:websocket=)
+            handler.handle
+          end
         end
 
         def safe_payload_for(channel, string)
