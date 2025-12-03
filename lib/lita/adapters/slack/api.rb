@@ -74,16 +74,42 @@ module Lita
         end
 
         def rtm_start
-          response_data = call_api("rtm.connect")
+          # Use Socket Mode if app_token is configured, otherwise fall back to RTM
+          if config.app_token
+            # Socket Mode: Get WebSocket URL using app-level token
+            socket_response = call_api("apps.connections.open", {}, config.app_token)
+            
+            # Get bot info using bot token
+            bot_info = call_api("auth.test")
+            
+            # Create a self user object from bot info
+            self_user = {
+              "id" => bot_info["user_id"],
+              "name" => bot_info["user"],
+              "real_name" => bot_info["user"]
+            }
+            
+            TeamData.new(
+              SlackIM.from_data_array([]),
+              SlackUser.from_data(self_user),
+              SlackUser.from_data_array([]),     # users
+              SlackChannel.from_data_array([]) + # channels
+                SlackChannel.from_data_array([]),# groups
+              socket_response["url"],
+            )
+          else
+            # RTM Mode: Use rtm.connect
+            response_data = call_api("rtm.connect")
 
-          TeamData.new(
-            SlackIM.from_data_array([]),
-            SlackUser.from_data(response_data["self"]),
-            SlackUser.from_data_array([]),     # users
-            SlackChannel.from_data_array([]) + # channels
-              SlackChannel.from_data_array([]),# groups
-            response_data["url"],
-          )
+            TeamData.new(
+              SlackIM.from_data_array([]),
+              SlackUser.from_data(response_data["self"]),
+              SlackUser.from_data_array([]),     # users
+              SlackChannel.from_data_array([]) + # channels
+                SlackChannel.from_data_array([]),# groups
+              response_data["url"],
+            )
+          end
         end
 
         private
@@ -92,10 +118,11 @@ module Lita
         attr_reader :config
         attr_reader :post_message_config
 
-        def call_api(method, post_data = {})
+        def call_api(method, post_data = {}, token_override = nil)
+          token = token_override || config.token
           response = connection.post(
             "https://slack.com/api/#{method}",
-            { token: config.token }.merge(post_data)
+            { token: token }.merge(post_data)
           )
 
           data = parse_response(response, method)
