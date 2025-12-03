@@ -120,10 +120,21 @@ module Lita
 
         def call_api(method, post_data = {}, token_override = nil)
           token = token_override || config.token
-          response = connection.post(
-            "https://slack.com/api/#{method}",
-            { token: token }.merge(post_data)
-          )
+          
+          # For apps.connections.open (Socket Mode), app-level token must be sent as Bearer token in header
+          if method == "apps.connections.open" && token_override
+            response = connection.post do |req|
+              req.url "https://slack.com/api/#{method}"
+              req.headers['Authorization'] = "Bearer #{token}"
+              req.body = post_data
+            end
+          else
+            # For other endpoints, use token as POST parameter
+            response = connection.post(
+              "https://slack.com/api/#{method}",
+              { token: token }.merge(post_data)
+            )
+          end
 
           data = parse_response(response, method)
 
