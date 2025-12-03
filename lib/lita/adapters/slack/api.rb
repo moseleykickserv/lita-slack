@@ -53,7 +53,6 @@ module Lita
         def send_attachments(room_or_user, attachments)
           call_api(
             "chat.postMessage",
-            as_user: true,
             channel: room_or_user.id,
             attachments: MultiJson.dump(attachments.map(&:to_hash)),
           )
@@ -63,7 +62,6 @@ module Lita
           call_api(
             "chat.postMessage",
             **post_message_config,
-            as_user: true,
             channel: channel_id,
             text: messages.join("\n"),
           )
@@ -126,7 +124,7 @@ module Lita
             response = connection.post do |req|
               req.url "https://slack.com/api/#{method}"
               req.headers['Authorization'] = "Bearer #{token}"
-              req.body = post_data
+              # apps.connections.open doesn't require a body - only the Authorization header
             end
           else
             # For other endpoints, use token as POST parameter
@@ -138,7 +136,15 @@ module Lita
 
           data = parse_response(response, method)
 
-          raise "Slack API call to #{method} returned an error: #{data["error"]}." if data["error"]
+          if data["error"]
+            error_msg = "Slack API call to #{method} returned an error: #{data["error"]}."
+            if data["error"] == "missing_scope" && data["needed"]
+              error_msg += " Required scope: #{data["needed"]}. Please add this scope in your Slack app's OAuth & Permissions settings and reinstall the app."
+            elsif data["error"] == "missing_scope"
+              error_msg += " For #{method}, you likely need the 'chat:write' scope. Please add it in your Slack app's OAuth & Permissions settings and reinstall the app."
+            end
+            raise error_msg
+          end
 
           data
         end
