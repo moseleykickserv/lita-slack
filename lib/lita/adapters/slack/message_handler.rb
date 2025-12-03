@@ -17,7 +17,7 @@ module Lita
           case type
           when "hello"
             handle_hello
-          when "message"
+          when "message", "app_mention"
             handle_message
           when "reaction_added", "reaction_removed"
             handle_reaction
@@ -206,8 +206,12 @@ module Lita
           log.debug("Received message event: #{data.inspect}")
           return unless supported_subtype?
           return if data["user"] == 'USLACKBOT'
-
-          user = User.find_by_id(data["user"]) || User.create(data["user"])
+          
+          # For app_mention events, the user might be in a different field
+          user_id = data["user"] || data["event"]&.dig("user")
+          return unless user_id
+          
+          user = User.find_by_id(user_id) || User.create(user_id)
 
           return if from_self?(user)
 
