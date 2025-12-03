@@ -96,7 +96,7 @@ module Lita
               when '!'
                 "@#{link}" if ['channel', 'group', 'everyone'].include? link
               else
-                link = link.gsub /^mailto:/, ''
+                link = link.gsub(/^mailto:/, '')
                 if label && !(link.include? label)
                   "#{label} (#{link})"
                 else
@@ -119,10 +119,22 @@ module Lita
           source = Source.new(user: user, room: room || channel)
           source.private_message! if channel && channel[0] == "D"
           message = Message.new(robot, body, source)
-          message.command! if source.private_message?
+          # Mark as command if it's a private message or if the bot is mentioned
+          if source.private_message? || mentioned?
+            message.command!
+          end
           message.extensions[:slack] = { timestamp: data["ts"] }
           log.debug("Dispatching message to Lita from #{user.id}.")
           robot.receive(message)
+        end
+
+        def mentioned?
+          return false unless data["text"]
+          text = data["text"].downcase
+          mention_name = robot.mention_name.downcase
+          # Check if the message contains a mention of the bot (Slack format) or the bot's mention name
+          mention_pattern = /\b#{Regexp.escape(mention_name)}\b/
+          text.include?("<@#{robot_id}>") || text.include?("@#{mention_name}") || text.match(mention_pattern)
         end
 
         def from_self?(user)
