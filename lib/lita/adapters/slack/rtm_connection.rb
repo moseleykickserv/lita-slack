@@ -105,9 +105,27 @@ module Lita
           log.debug("Received WebSocket message: #{data.inspect}")
 
           EventLoop.defer do
-            handler = MessageHandler.new(robot, robot_id, data, config)
-            handler.websocket = websocket if handler.respond_to?(:websocket=)
-            handler.handle
+            # In Socket Mode, events come wrapped in an events_api envelope
+            if data["type"] == "events_api"
+              # Extract the actual event from payload.event
+              event_data = data["payload"]["event"]
+              envelope_id = data["envelope_id"]
+              
+              # Acknowledge the event
+              if envelope_id
+                websocket.send(MultiJson.dump({ envelope_id: envelope_id }))
+              end
+              
+              # Process the actual event
+              handler = MessageHandler.new(robot, robot_id, event_data, config)
+              handler.websocket = websocket if handler.respond_to?(:websocket=)
+              handler.handle
+            else
+              # RTM mode - process directly
+              handler = MessageHandler.new(robot, robot_id, data, config)
+              handler.websocket = websocket if handler.respond_to?(:websocket=)
+              handler.handle
+            end
           end
         end
 
